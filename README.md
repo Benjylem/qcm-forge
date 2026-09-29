@@ -5,7 +5,7 @@ Application web qui transforme des supports de cours (PDF, PPTX) en fiches de r�
 ## État actuel
 
 - [x] PostgreSQL 17 en local via Docker Compose, avec healthcheck
-- [ ] API Go avec `/health`
+- [x] API Go avec `/health` (build multi-stage, image finale sur Alpine, binaire statique)
 - [ ] Fonctionnalités MVP (upload, extraction, génération de QCM)
 - [ ] CI GitHub Actions (tests, build, scan Trivy)
 - [ ] Déploiement VPS avec HTTPS
@@ -14,16 +14,21 @@ Application web qui transforme des supports de cours (PDF, PPTX) en fiches de r�
 ## Architecture (état actuel)
 
 ```
-┌─────────────────────────────┐
-│  Docker Compose             │
-│                             │
-│  ┌───────────────────────┐  │
-│  │ db (postgres:17)      │  │
-│  │ 127.0.0.1:5433 -> 5432│  │
-│  │ volume: pgdata        │  │
-│  └───────────────────────┘  │
-└─────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│  Docker Compose (réseau interne qcm-forge_default)     │
+│                                                         │
+│  ┌────────────────────────┐   ┌──────────────────────┐ │
+│  │ api (Go, build local)  │   │ db (postgres:17)      │ │
+│  │ 127.0.0.1:8080 -> 8080 │──▶│ 127.0.0.1:5433 -> 5432│ │
+│  │ GET /health -> "ok"    │   │ volume: pgdata        │ │
+│  │ depends_on: db healthy │   │ healthcheck pg_isready│ │
+│  └────────────────────────┘   └──────────────────────┘ │
+└───────────────────────────────────────────────────────┘
 ```
+
+`api` est buildée depuis `api/Dockerfile` (multi-stage : compilation dans `golang:alpine`,
+binaire statique copié dans une image `alpine` finale). Elle ne contacte pas encore la base
+(`/health` vérifie seulement que le processus répond).
 
 ## Lancer le projet en local
 
