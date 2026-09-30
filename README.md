@@ -6,6 +6,7 @@ Application web qui transforme des supports de cours (PDF, PPTX) en fiches de r�
 
 - [x] PostgreSQL 17 en local via Docker Compose, avec healthcheck
 - [x] API Go avec `/health` (build multi-stage, image finale sur Alpine, binaire statique)
+- [x] `/health` vérifie réellement la connexion à Postgres (`pool.Ping`) : `200 ok` ou `503 db unreachable`
 - [ ] Fonctionnalités MVP (upload, extraction, génération de QCM)
 - [ ] CI GitHub Actions (tests, build, scan Trivy)
 - [ ] Déploiement VPS avec HTTPS
@@ -27,8 +28,9 @@ Application web qui transforme des supports de cours (PDF, PPTX) en fiches de r�
 ```
 
 `api` est buildée depuis `api/Dockerfile` (multi-stage : compilation dans `golang:alpine`,
-binaire statique copié dans une image `alpine` finale). Elle ne contacte pas encore la base
-(`/health` vérifie seulement que le processus répond).
+binaire statique copié dans une image `alpine` finale). `/health` vérifie la connexion à
+Postgres via un pool `pgx` (`GET /health` -> `200 ok`, ou `503 db unreachable` si la base
+ne répond pas).
 
 ## Lancer le projet en local
 
