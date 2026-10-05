@@ -9,6 +9,7 @@ Projet personnel, en solo. L'objectif est de montrer un pipeline complet : API, 
 - [x] PostgreSQL 17 en local via Docker Compose, avec healthcheck
 - [x] API Go avec `/health` (build multi-stage, image finale sur Alpine, binaire statique)
 - [x] `/health` vérifie réellement la connexion à Postgres (`pool.Ping`) : `200 ok` ou `503 db unreachable`
+- [x] Frontend React + Vite minimal qui affiche l'état de `/health` (proxy Vite vers l'API)
 - [ ] Fonctionnalités MVP (comptes, upload, extraction, génération de QCM, mode révision)
 - [ ] CI GitHub Actions (tests, build, scan Trivy)
 - [ ] Déploiement VPS avec HTTPS
@@ -51,6 +52,18 @@ curl -i http://127.0.0.1:8080/health
 
 Réponse attendue : `HTTP/1.1 200 OK` avec le corps `ok`. Si Postgres est arrêté (`docker compose stop db`), la réponse devient `503 db unreachable`.
 
+### Frontend (dev)
+
+Prérequis supplémentaire : Node.js et npm.
+
+```bash
+cd frontend
+npm ci
+npm run dev                 # http://localhost:5173 affiche "API : ok"
+```
+
+Le proxy Vite redirige `/health` et `/api/*` vers `127.0.0.1:8080`, ce qui évite d'avoir à configurer CORS en dev.
+
 Arrêter : `docker compose down`. Pour supprimer aussi les données, ajouter `-v` : le volume `pgdata` est alors détruit.
 
 ## Variables d'environnement
@@ -78,6 +91,7 @@ api/
   internal/llmprovider/    (à venir) interface vers le fournisseur LLM
   internal/qcm/            (à venir) génération et stockage des QCM
   Dockerfile
+frontend/                  React + TypeScript (Vite), affiche l'état de /health
 migrations/                (à venir) migrations SQL
 docker-compose.yml
 ```
@@ -99,5 +113,6 @@ Pour monter un **dossier local** dans un conteneur, ajouter `:z` au volume (ex. 
 ## Stack
 
 - **API** : Go, `net/http`, `pgx`
+- **Frontend** : React, TypeScript, Vite
 - **Base de données** : PostgreSQL 17
 - **Conteneurs** : Docker, Docker Compose
