@@ -14,12 +14,29 @@ services:
       timeout: 3s
       retries: 5
 
+  # Applique les migrations SQL puis s'arrête (conteneur "one-shot").
+  migrate:
+    image: migrate/migrate:v4.20.1
+    # :ro = lecture seule, :z = étiquette SELinux (Fedora) pour un dossier local
+    volumes:
+      - ./migrations:/migrations:ro,z
+    # Les ${...} sont remplacés par Compose à partir du fichier .env
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable"
+      - "up"
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build: ./api
     env_file: .env
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8080:8080"
 

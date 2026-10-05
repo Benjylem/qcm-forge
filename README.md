@@ -10,6 +10,7 @@ Projet personnel, en solo. L'objectif est de montrer un pipeline complet : API, 
 - [x] API Go avec `/health` (build multi-stage, image finale sur Alpine, binaire statique)
 - [x] `/health` vérifie réellement la connexion à Postgres (`pool.Ping`) : `200 ok` ou `503 db unreachable`
 - [x] Frontend React + Vite minimal qui affiche l'état de `/health` (proxy Vite vers l'API)
+- [x] Migrations SQL versionnées (golang-migrate), table `users`
 - [ ] Fonctionnalités MVP (comptes, upload, extraction, génération de QCM, mode révision)
 - [ ] CI GitHub Actions (tests, build, scan Trivy)
 - [ ] Déploiement VPS avec HTTPS
@@ -19,21 +20,27 @@ Projet personnel, en solo. L'objectif est de montrer un pipeline complet : API, 
 ## Architecture (état actuel)
 
 ```
-┌───────────────────────────────────────────────────────┐
-│  Docker Compose (réseau interne qcm-forge_default)     │
-│                                                         │
-│  ┌────────────────────────┐   ┌──────────────────────┐ │
-│  │ api (Go, build local)  │   │ db (postgres:17)      │ │
-│  │ 127.0.0.1:8080 -> 8080 │──▶│ 127.0.0.1:5433 -> 5432│ │
-│  │ GET /health -> "ok"    │   │ volume: pgdata        │ │
-│  │ depends_on: db healthy │   │ healthcheck pg_isready│ │
-│  └────────────────────────┘   └──────────────────────┘ │
-└───────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Docker Compose (réseau interne qcm-forge_default)            │
+│                                                                │
+│  ┌──────────────────────┐        ┌────────────────────────┐   │
+│  │ migrate (one-shot)   │──SQL──▶│ db (postgres:17)        │   │
+│  │ migrate/migrate      │        │ 127.0.0.1:5433 -> 5432  │   │
+│  │ ./migrations (ro)    │        │ volume: pgdata          │   │
+│  └──────────┬───────────┘        │ healthcheck pg_isready  │   │
+│             │ terminé (exit 0)   └────────────▲───────────┘   │
+│             ▼                                 │               │
+│  ┌──────────────────────┐                     │               │
+│  │ api (Go, build local)│─────────────────────┘               │
+│  │ 127.0.0.1:8080       │                                     │
+│  │ GET /health -> "ok"  │                                     │
+│  └──────────────────────┘                                     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 - `api` est buildée depuis `api/Dockerfile` en multi-stage : compilation dans `golang:1.26.8-alpine3.24`, puis binaire statique (`CGO_ENABLED=0`) copié dans `alpine:3.24.2` et exécuté en utilisateur `nobody`.
 - L'API joint Postgres via le réseau interne Docker (`db:5432`). Le port `5433` côté hôte ne sert qu'à se connecter depuis la machine (psql, DBeaver).
-- `depends_on: condition: service_healthy` : l'API ne démarre que quand `pg_isready` répond.
+- Ordre de démarrage : `db` healthy → `migrate` applique les migrations et s'arrête (`service_completed_successfully`) → `api` démarre. L'API ne tourne jamais sur un schéma pas à jour.
 - Tous les ports sont exposés sur `127.0.0.1` uniquement, donc rien n'est accessible depuis le réseau local.
 
 ## Prérequis
@@ -64,6 +71,19 @@ npm run dev                 # http://localhost:5173 affiche "API : ok"
 
 Le proxy Vite redirige `/health` et `/api/*` vers `127.0.0.1:8080`, ce qui évite d'avoir à configurer CORS en dev.
 
+### Migrations SQL
+
+Outil : [golang-migrate](https://github.com/golang-migrate/migrate) (`migrate/migrate:v4.20.1`), lancé automatiquement par `docker compose up`.
+
+- Chaque migration est une paire `NNNNNN_nom.up.sql` / `NNNNNN_nom.down.sql` dans `migrations/`.
+- La table `schema_migrations` retient la dernière version appliquée. Relancer `up` sans nouvelle migration affiche `no change`.
+- Ne jamais modifier une migration déjà appliquée : en créer une nouvelle.
+
+```bash
+docker compose logs migrate                         # voir ce qui a été appliqué
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d users"'
+```
+
 Arrêter : `docker compose down`. Pour supprimer aussi les données, ajouter `-v` : le volume `pgdata` est alors détruit.
 
 ## Variables d'environnement
@@ -92,7 +112,7 @@ api/
   internal/qcm/            (à venir) génération et stockage des QCM
   Dockerfile
 frontend/                  React + TypeScript (Vite), affiche l'état de /health
-migrations/                (à venir) migrations SQL
+migrations/                migrations SQL (up/down), appliquées par le service migrate
 docker-compose.yml
 ```
 
