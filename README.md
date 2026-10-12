@@ -118,7 +118,7 @@ flowchart LR
     subgraph compose [Docker Compose · network qcm-forge_default]
         db[(db · postgres:17<br/>127.0.0.1:5433 → 5432<br/>volume pgdata)]
         migrate[migrate · v4.20.1<br/>applies migrations/ then exits] -->|SQL| db
-        api[api · Go<br/>GET /health] -->|db:5432| db
+        api[api · Go<br/>/health, /signup, /login,<br/>/logout, /me] -->|db:5432| db
     end
 
     db -. "healthy" .-> migrate
@@ -130,6 +130,8 @@ flowchart LR
 - **Network:** the API reaches Postgres on the internal Docker network (`db:5432`). Host port `5433` is only for local tools (psql, DBeaver).
 - **Exposure:** every port is bound to `127.0.0.1`, so nothing is reachable from the local network.
 - **No CORS needed:** in dev, the Vite proxy makes the browser talk to a single origin. In production, the reverse proxy will play the same role.
+- **Auth:** `POST /signup` only creates the account (no cookie) — the user must then prove they know the password via `POST /login`, which sets an `HttpOnly` session cookie (opaque random token, hashed with SHA-256 before storage in `sessions`). `GET /me` is the first protected route — it validates the cookie against the table. Passwords are hashed with argon2id (OWASP parameters). `Secure` is `false` on the cookie until HTTPS lands (step 4) — tracked, not forgotten.
+- **Frontend auth:** `src/api.ts` wraps the 4 routes; responses are read as text first, then parsed as JSON only if non-empty (`/signup` and `/login` return no body on success — calling `res.json()` unconditionally on an empty body was a real bug caught during manual testing, see commit history).
 
 ## Status
 
@@ -137,7 +139,7 @@ flowchart LR
 - [x] Go API with `/health` that really pings Postgres (`200 ok` / `503 db unreachable`)
 - [x] Minimal React + Vite frontend that displays the API status
 - [x] Versioned SQL migrations (golang-migrate), `users` table
-- [ ] Sign-up / login (argon2id, sessions)
+- [x] Sign-up / login (argon2id, sessions)
 - [ ] Per-user LLM API key, encrypted (AES-GCM)
 - [ ] PDF/PPTX upload and text extraction
 - [ ] Quiz generation with explanation and source excerpt
