@@ -13,5 +13,9 @@ import (
 func NewMux(pool *pgxpool.Pool) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler(pool))
+	mux.HandleFunc("POST /signup", signupHandler(pool))
+	mux.HandleFunc("POST /login", loginHandler(pool))
+	mux.HandleFunc("POST /logout", logoutHandler(pool))
+	mux.HandleFunc("GET /me", meHandler(pool))
 	return mux
 }

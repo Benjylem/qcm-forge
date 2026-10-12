@@ -118,7 +118,7 @@ flowchart LR
     subgraph compose [Docker Compose · réseau qcm-forge_default]
         db[(db · postgres:17<br/>127.0.0.1:5433 → 5432<br/>volume pgdata)]
         migrate[migrate · v4.20.1<br/>applique migrations/ puis s'arrête] -->|SQL| db
-        api[api · Go<br/>GET /health] -->|db:5432| db
+        api[api · Go<br/>/health, /signup, /login,<br/>/logout, /me] -->|db:5432| db
     end
 
     db -. "healthy" .-> migrate
@@ -130,6 +130,7 @@ flowchart LR
 - **Réseau :** l'API joint Postgres par le réseau interne Docker (`db:5432`). Le port `5433` côté hôte sert uniquement aux outils locaux (psql, DBeaver).
 - **Exposition :** tous les ports sont liés à `127.0.0.1`, donc rien n'est accessible depuis le réseau local.
 - **Pas de CORS :** en dev, le proxy Vite fait parler le navigateur à une seule origine. En production, le reverse proxy jouera le même rôle.
+- **Authentification :** `POST /signup` et `POST /login` posent un cookie de session `HttpOnly` (jeton aléatoire opaque, hashé en SHA-256 avant stockage dans `sessions`). `GET /me` est la première route protégée — elle valide le cookie contre la table. Les mots de passe sont hashés en argon2id (paramètres OWASP). `Secure` est à `false` sur le cookie en attendant HTTPS (étape 4) — tracé, pas oublié.
 
 ## État
 
@@ -137,7 +138,7 @@ flowchart LR
 - [x] API Go avec `/health` qui interroge réellement Postgres (`200 ok` / `503 db unreachable`)
 - [x] Frontend React + Vite minimal qui affiche l'état de l'API
 - [x] Migrations SQL versionnées (golang-migrate), table `users`
-- [ ] Inscription / connexion (argon2id, sessions)
+- [x] Inscription / connexion (argon2id, sessions)
 - [ ] Clé API LLM par utilisateur, chiffrée (AES-GCM)
 - [ ] Upload PDF/PPTX et extraction du texte
 - [ ] Génération de QCM avec explication et extrait source
