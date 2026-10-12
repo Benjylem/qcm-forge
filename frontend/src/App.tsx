@@ -1,20 +1,39 @@
 import { useEffect, useState } from 'react'
+import AuthForm from './AuthForm'
+import { logout, me } from './api'
 
-type HealthStatus = 'loading' | 'ok' | 'down'
+type AuthState = 'loading' | 'anonymous' | { userId: number }
 
 function App() {
-  const [status, setStatus] = useState<HealthStatus>('loading')
+  const [auth, setAuth] = useState<AuthState>('loading')
 
-  useEffect(() => {
-    fetch('/health')
-      .then((res) => setStatus(res.ok ? 'ok' : 'down'))
-      .catch(() => setStatus('down'))
-  }, [])
+  function checkSession() {
+    me()
+      .then((data) => setAuth({ userId: data.user_id }))
+      .catch(() => setAuth('anonymous'))
+  }
+
+  useEffect(checkSession, [])
+
+  async function handleLogout() {
+    await logout().catch(() => {}) // déconnexion best-effort côté UI
+    setAuth('anonymous')
+  }
 
   return (
     <main>
       <h1>qcm-forge</h1>
-      <p>API : {status}</p>
+
+      {auth === 'loading' && <p>Chargement...</p>}
+
+      {auth === 'anonymous' && <AuthForm onAuthenticated={checkSession} />}
+
+      {typeof auth === 'object' && (
+        <div>
+          <p>Connecté (utilisateur #{auth.userId})</p>
+          <button onClick={handleLogout}>Se déconnecter</button>
+        </div>
+      )}
     </main>
   )
 }

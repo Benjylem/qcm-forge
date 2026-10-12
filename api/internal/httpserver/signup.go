@@ -44,7 +44,13 @@ func signupHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		userID, err := auth.CreateUser(r.Context(), pool, creds.Email, hash)
+		// Pas de session créée ici volontairement : /signup crée le
+		// compte, rien de plus. L'utilisateur doit passer par /login
+		// pour prouver qu'il connaît bien son mot de passe - sinon on
+		// aurait deux chemins différents pour obtenir une session, et
+		// signup laisserait une session active sans que l'utilisateur
+		// ait jamais réellement "prouvé" sa connexion.
+		_, err = auth.CreateUser(r.Context(), pool, creds.Email, hash)
 		if errors.Is(err, auth.ErrEmailTaken) {
 			writeError(w, http.StatusConflict, "email déjà utilisé")
 			return
@@ -54,13 +60,6 @@ func signupHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		token, err := auth.CreateSession(r.Context(), pool, userID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "erreur serveur")
-			return
-		}
-
-		setSessionCookie(w, token)
 		w.WriteHeader(http.StatusCreated)
 	}
 }

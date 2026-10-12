@@ -130,7 +130,8 @@ flowchart LR
 - **Réseau :** l'API joint Postgres par le réseau interne Docker (`db:5432`). Le port `5433` côté hôte sert uniquement aux outils locaux (psql, DBeaver).
 - **Exposition :** tous les ports sont liés à `127.0.0.1`, donc rien n'est accessible depuis le réseau local.
 - **Pas de CORS :** en dev, le proxy Vite fait parler le navigateur à une seule origine. En production, le reverse proxy jouera le même rôle.
-- **Authentification :** `POST /signup` et `POST /login` posent un cookie de session `HttpOnly` (jeton aléatoire opaque, hashé en SHA-256 avant stockage dans `sessions`). `GET /me` est la première route protégée — elle valide le cookie contre la table. Les mots de passe sont hashés en argon2id (paramètres OWASP). `Secure` est à `false` sur le cookie en attendant HTTPS (étape 4) — tracé, pas oublié.
+- **Authentification :** `POST /signup` crée seulement le compte (pas de cookie) — l'utilisateur doit ensuite prouver qu'il connaît le mot de passe via `POST /login`, qui pose un cookie de session `HttpOnly` (jeton aléatoire opaque, hashé en SHA-256 avant stockage dans `sessions`). `GET /me` est la première route protégée — elle valide le cookie contre la table. Les mots de passe sont hashés en argon2id (paramètres OWASP). `Secure` est à `false` sur le cookie en attendant HTTPS (étape 4) — tracé, pas oublié.
+- **Auth côté frontend :** `src/api.ts` encapsule les 4 routes ; les réponses sont lues en texte d'abord, puis parsées en JSON seulement si non vides (`/signup` et `/login` ne renvoient aucun corps en cas de succès — appeler `res.json()` sans condition sur un corps vide était un vrai bug, détecté pendant les tests manuels, voir l'historique des commits).
 
 ## État
 
